@@ -1,40 +1,24 @@
-import os, json
-from flask import Flask, request, jsonify, render_template_string
-
 app = Flask(__name__)
-VERIFY_TOKEN = os.getenv("VERIFY_TOKEN", "victoria_secret_123")
+VERIFY_TOKEN = os.environ.get("VERIFY_TOKEN", "victoria_secret_123")
 
-DB_FILE = "data.json"
-def load_db():
-    try:
-        import json
-        with open(DB_FILE) as f: return json.load(f)
-    except: return {"doctors": [], "labs": [], "orders": []}
-def save_db(db):
-    with open(DB_FILE, "w") as f: json.dump(f, db, indent=2)
+@app.route('/')
+def home():
+    return "Victoria Bot Live - Puttur"
 
-@app.route("/")
-def home(): return "Victoria Bot Live"
-
-@app.route("/webhook", methods=["GET"])
-def verify():
-    if request.args.get("hub.verify_token") == VERIFY_TOKEN:
-        return request.args.get("hub.challenge")
-    return "Invalid", 403
-
-@app.route("/webhook", methods=["POST"])
+@app.route('/webhook', methods=['GET', 'POST'])
 def webhook():
-    print(request.json)
-    return jsonify({"status":"ok"})
+    if request.method == 'GET':
+        mode = request.args.get('hub.mode')
+        token = request.args.get('hub.verify_token')
+        challenge = request.args.get('hub.challenge')
+        if mode == 'subscribe' and token == VERIFY_TOKEN:
+            return challenge, 200
+        else:
+            return "Verification failed", 403
+    
+    if request.method == 'POST':
+        print("Message received:", request.get_json())
+        return "OK", 200
 
-@app.route("/admin")
-def admin():
-    db = load_db()
-    return f"<h2>Victoria Hospital Admin</h2><p>Labs: {db['labs']}</p><p>Doctors: {db['doctors']}</p><form method=post action=/admin/add_lab>Lab Name<input name=name> Phone<input name=phone><button>Add</button></form>"
-
-@app.route("/admin/add_lab", methods=["POST"])
-def add_lab():
-    db=load_db(); db["labs"].append({"name":request.form["name"],"phone":request.form["phone"]}); save_db(db); return "Added <a href=/admin>Back</a>"
-
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT",10000)))
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 10000)))
