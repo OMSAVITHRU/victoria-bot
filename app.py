@@ -110,7 +110,7 @@ def incoming():
 
         if low in ["hi","hello","start","menu","reset"]:
             sessions[phone]={"step":"ask_name","data":{}}
-            send_msg(phone, f"Hi {name} 🙏\n*Victoria Infosys Lab*\n\nStep 1/6 - Patient Name?")
+            send_msg(phone, f"Hi {name} 🙏\n*Welcome to Victoria Hospital Infosys Lab*\n\nStep 1/6 - Patient Name?")
             return "OK",200
 
         sess=sessions.get(phone)
