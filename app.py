@@ -7,8 +7,7 @@ ALL_TESTS = {1:"Hb, PCV",2:"Hb, TC, DC",3:"Hb, TC, DC, ALC",4:"Hb Hemoglobin",5:
 
 PRICES = {1:50,2:80,3:100,4:30,5:30,6:50,7:50,8:80,9:80,10:50,11:300,12:350,13:50,14:50,15:150,16:100,17:50,18:2000,19:1500,20:1500,21:1000,22:1000,23:500,24:500,25:200,26:200,27:800,28:300,29:400,30:200,31:300,32:200,33:250,34:600,35:400,36:100,37:50,38:50,39:100,40:100,41:100,42:150,43:100,44:50,45:50,46:100,47:600,48:200,49:200,50:200,51:200,52:200,53:400,54:300,55:200,56:200,57:800,58:400,59:2000,60:1500,61:800,62:800,63:500,64:200,65:200,66:500,67:1500,68:3000,69:400,70:0,71:60,72:40,73:300,74:400,75:400,76:800,77:0,78:80,79:80,80:80,81:80,82:150,83:80,84:200,85:600,86:0,87:0,88:80,89:80,90:80,91:80,92:80,93:80,94:80,95:100,96:150,97:200,98:0,99:80,100:80,101:80,102:80,103:80,104:0,105:100,106:300,107:100,108:600,109:600,110:500,111:500,112:250,113:300,114:300,115:200,116:250,117:350,118:400,119:250,120:250,121:500,122:400,123:300,124:300,125:80,126:150,127:150,128:200,129:250,130:300,131:400,132:250,133:200,134:200,135:200,136:200,137:200,138:80,139:80,140:80,141:100,142:0,143:80,144:80,145:100,146:100,147:200,148:200,149:200,150:200,151:100,152:0,153:400,154:400,155:400,156:400,157:0,158:100,159:250,160:200,161:200,162:400,163:200,164:200,165:0,166:300,167:300,168:0,169:100,170:100,171:100,172:150,173:100,174:100,175:100,176:100,177:100,178:100,179:150,180:150,181:150,182:800,183:800,184:400,185:400,186:400,187:400,188:400,189:400,190:400,191:400,192:400,193:200,194:100,195:100,196:100,197:100,198:150,199:150,200:200,201:200,202:300,203:150,204:500,205:500,206:500,207:500,208:500,209:500,210:500,211:500,212:500,213:500,214:500,215:500,216:400,217:500,218:2000,219:2000,220:2500,221:800,222:3000,223:1500,224:1000}
 
-# ===== FLAG UNAVAILABLE TESTS HERE =====
-UNAVAILABLE = {18,19,20,21,22,62,68,218,219,220,222} # Edit this list
+UNAVAILABLE = {18,19,20,21,22,62,68,218,219,220,222}
 
 sessions={}
 
@@ -22,70 +21,106 @@ def send_msg(to, text):
 def parse_tests(tests_raw):
     tests_raw_clean = tests_raw.replace(",", " ")
     parts = tests_raw_clean.split()
-    total=0; details=[]; nums=[]; unavailable_found=[]
+    total=0; details=[]; nums=[]; una=[]
     for part in parts:
         part=part.strip()
         if not part: continue
         if part.isdigit() and int(part) in ALL_TESTS:
             num=int(part)
             if num in UNAVAILABLE:
-                unavailable_found.append(f"{num}. {ALL_TESTS[num]} - UNAVAILABLE")
-                continue
+                una.append(f"{num}. {ALL_TESTS[num]} - UNAVAILABLE PRESENTLY"); continue
             price=PRICES.get(num,0); total+=price; nums.append(str(num))
             details.append(f"{num}. {ALL_TESTS[num]} - Rs.{price}")
-        else:
-            # name search
-            for num,n in ALL_TESTS.items():
-                if part.lower() in n.lower():
-                    if num in UNAVAILABLE:
-                        unavailable_found.append(f"{num}. {n} - UNAVAILABLE")
-                        break
-                    price=PRICES.get(num,0); total+=price; nums.append(str(num))
-                    details.append(f"{num}. {n} - Rs.{price}")
-                    break
-    return total, details, nums, unavailable_found
+    return total, details, nums, una
 
 MENU_MSG = """Reply with:
 F1 - Book lab tests (label format)
 F2 - Book lab tests (line-by-line)
-F3 - View all 224 tests with price"""
+F3 - View all 224 tests with price
 
-F1_TEMPLATE = """*Victoria Lab - F1 Format - Send ONE message like this:*
-
-Name: Ramesh Kumar
-Age: 45
-Sex: M
-UHID: 12345678999
-IPID: 123456
-Tests: 71 78 88 112
-Dr: Medicine
-Diagnosis/Remarks: Fever
-
-Tests: use space - 71 78 88
-Copy, fill & send 👆"""
-
-F2_TEMPLATE = """*Victoria Lab - F2 Format - Send details line-by-line:*
-
+Choose F1 to fill details in following fields:
 Name:
 Age:
 Sex:
 UHID:
 IPID:
-Tests:
-Dr:
+Ward:
+Dept:
 Diagnosis/Remarks:
+Tests:
 
-*Example - Copy & fill:*
-Ramesh Kumar
-45 y
+Your reply should look as follows:
+Name: Mr. Ramesh Kumar
+Age: 23 yrs
+Sex: M
+UHID: 12345678999
+IPID: 123456
+Ward: Emergency Ward
+Dept: S1
+Diagnosis/Remarks:?Malaria
+Tests: 1 6 9 66 99
+
+Choose F2 to fill only necessary details exactly following order:
+Name:
+Age:
+Sex:
+UHID:
+IPID:
+Ward:
+Dept:
+Diagnosis/Remarks:
+Tests:
+
+Your reply should look as follows:
+Mr. Ramesh Kumar
+23 yrs
 M
 12345678999
 123456
-71 78 88 112
-Med U3
-Fever - Patient will be allocated UHID first and investigations are advised only after registration and allocation of UHID.
+Emergency Ward
+S1
+?Malaria
+1 6 9 66 99"""
 
-Send 8 lines in order 👆"""
+F1_TEMPLATE = """*You chose F1 - Send in label format:*
+
+Name: Mr. Ramesh Kumar
+Age: 23 yrs
+Sex: M
+UHID: 12345678999
+IPID: 123456
+Ward: Emergency Ward
+Dept: S1
+Diagnosis/Remarks:?Malaria
+Tests: 1 6 9 66 99
+
+Copy above, edit & send in ONE message 👆
+Tests: use space - Eg: 1 6 9 66 99"""
+
+F2_TEMPLATE = """*You chose F2 - Send 9 lines exactly in this order:*
+
+1 Name
+2 Age
+3 Sex
+4 UHID
+5 IPID
+6 Ward
+7 Dept
+8 Diagnosis/Remarks
+9 Tests
+
+*Example:*
+Mr. Ramesh Kumar
+23 yrs
+M
+12345678999
+123456
+Emergency Ward
+S1
+?Malaria
+1 6 9 66 99
+
+Send 9 lines now 👆"""
 
 @app.route("/webhook", methods=["GET"])
 def verify():
@@ -103,7 +138,6 @@ def incoming():
         txt=m.get('text',{}).get('body','').strip() if m.get('type')=='text' else ''
         low=txt.lower()
 
-        # FIRST MESSAGE - SHOW MENU
         if low in ["hi","hello","start","menu","reset","hey"]:
             sessions[phone]={"step":"await_f","data":{}}
             send_msg(phone, f"Hi {prof} 🙏\n*Welcome to Victoria Hospital Infosys Lab*\n\n{MENU_MSG}")
@@ -123,11 +157,10 @@ def incoming():
             elif low=="f2":
                 sess["step"]="f2_input"; send_msg(phone, F2_TEMPLATE)
             elif low=="f3":
-                # Send list in chunks
                 full="*ALL 224 INVESTIGATIONS WITH PRICE:*\n"
                 for num in range(1,225):
                     name=ALL_TESTS[num]; price=PRICES.get(num,0)
-                    flag=" ❌ UNAVAILABLE" if num in UNAVAILABLE else ""
+                    flag=" ❌ UNAVAILABLE PRESENTLY" if num in UNAVAILABLE else ""
                     full+=f"{num}. {name} - Rs.{price}{flag}\n"
                     if len(full)>2800:
                         send_msg(phone, full); full=""
@@ -137,7 +170,6 @@ def incoming():
                 send_msg(phone, f"Please reply only *F1* or *F2* or *F3*\n\n{MENU_MSG}")
             return "OK",200
 
-        # F1 - label format Name: etc
         if step=="f1_input":
             parsed={}
             for l in txt.split("\n"):
@@ -145,62 +177,60 @@ def incoming():
                     k,v=l.split(":",1); parsed[k.strip().lower()]=v.strip()
             pname=parsed.get("name",""); age=parsed.get("age",""); sex=parsed.get("sex","")
             uhid=parsed.get("uhid",""); ipid=parsed.get("ipid","")
-            tests_raw=parsed.get("tests",""); dr=parsed.get("dr",""); diag=parsed.get("diagnosis/remarks", parsed.get("diagnosis",""))
+            ward=parsed.get("ward",""); dept=parsed.get("dept","")
+            diag=parsed.get("diagnosis/remarks", parsed.get("diagnosis",""))
+            tests_raw=parsed.get("tests","")
 
             total, details, nums, una = parse_tests(tests_raw)
-            d.update({"pname":pname,"age":age,"sex":sex,"uhid":uhid,"ipid":ipid,"tests_raw":tests_raw,"dr":dr,"diag":diag,"total":total,"details":details,"nums":nums,"una":una})
+            d.update({"pname":pname,"age":age,"sex":sex,"uhid":uhid,"ipid":ipid,"ward":ward,"dept":dept,"diag":diag,"total":total,"details":details,"nums":nums,"una":una,"tests_raw":tests_raw})
 
             bill="\n".join(details) if details else "No valid tests"
-            una_msg="\n⚠️ *Unavailable:*\n"+"\n".join(una) if una else ""
-            summary=f"*Confirm Details:*\n\nPatient: {pname}\nAge: {age}\nSex: {sex}\nUHID: {uhid}\nIPID: {ipid}\nDr: {dr}\nDiagnosis: {diag}\n\n{bill}\n*TOTAL: Rs.{total}*"+una_msg+"\n\nIf correct type *YES* to book\nIf wrong, send corrected format again"
-            sess["step"]="confirm"
-            send_msg(phone, summary)
-            return "OK",200
+            una_msg="\n⚠️ *Unavailable presently:*\n"+"\n".join(una) if una else ""
+            summary=f"*Confirm Details - Type YES to book / Send correction if error:*\n\nPatient: {pname}\nAge: {age}\nSex: {sex}\nUHID: {uhid}\nIPID: {ipid}\nWard: {ward}\nDept: {dept}\nDiagnosis: {diag}\n\n{bill}\n*TOTAL: Rs.{total}*"+una_msg
+            sess["step"]="confirm"; send_msg(phone, summary); return "OK",200
 
-        # F2 - line by line 8 lines
         if step=="f2_input":
             lines=[l.strip() for l in txt.split("\n") if l.strip()!=""]
-            if len(lines)<6:
-                send_msg(phone, "Please send 8 lines like example:\n"+F2_TEMPLATE)
-                return "OK",200
-            # map 8 lines
-            # Expected: Name, Age, Sex, UHID, IPID, Tests, Dr, Diagnosis
-            pname=lines[0] if len(lines)>0 else ""
-            age=lines[1] if len(lines)>1 else ""
-            sex=lines[2] if len(lines)>2 else ""
-            uhid=lines[3] if len(lines)>3 else ""
-            ipid=lines[4] if len(lines)>4 else ""
-            tests_raw=lines[5] if len(lines)>5 else ""
-            dr=lines[6] if len(lines)>6 else ""
-            diag=" ".join(lines[7:]) if len(lines)>7 else ""
+            if len(lines)<9:
+                send_msg(phone, f"Need 9 lines. You sent {len(lines)}. Send like:\n"+F2_TEMPLATE); return "OK",200
+            pname=lines[0]; age=lines[1]; sex=lines[2]; uhid=lines[3]; ipid=lines[4]
+            ward=lines[5]; dept=lines[6]; diag=lines[7]; tests_raw=lines[8]
 
             total, details, nums, una = parse_tests(tests_raw)
-            d.update({"pname":pname,"age":age,"sex":sex,"uhid":uhid,"ipid":ipid,"tests_raw":tests_raw,"dr":dr,"diag":diag,"total":total,"details":details,"nums":nums,"una":una})
+            d.update({"pname":pname,"age":age,"sex":sex,"uhid":uhid,"ipid":ipid,"ward":ward,"dept":dept,"diag":diag,"total":total,"details":details,"nums":nums,"una":una,"tests_raw":tests_raw})
 
             bill="\n".join(details) if details else "No valid tests"
-            una_msg="\n⚠️ *Unavailable:*\n"+"\n".join(una) if una else ""
-            summary=f"*Confirm Details:*\n\nPatient: {pname}\nAge: {age}\nSex: {sex}\nUHID: {uhid}\nIPID: {ipid}\nDr: {dr}\nDiagnosis: {diag}\n\n{bill}\n*TOTAL: Rs.{total}*"+una_msg+"\n\nIf correct type *YES* to book\nIf wrong, send 8 lines again corrected"
-            sess["step"]="confirm"
-            send_msg(phone, summary)
-            return "OK",200
+            una_msg="\n⚠️ *Unavailable presently:*\n"+"\n".join(una) if una else ""
+            summary=f"*Confirm Details - Type YES to book / Send correction if error:*\n\nPatient: {pname}\nAge: {age}\nSex: {sex}\nUHID: {uhid}\nIPID: {ipid}\nWard: {ward}\nDept: {dept}\nDiagnosis: {diag}\n\n{bill}\n*TOTAL: Rs.{total}*"+una_msg
+            sess["step"]="confirm"; send_msg(phone, summary); return "OK",200
 
         if step=="confirm":
             if low in ["yes","y","confirm","book","ok","correct"]:
                 order_id=f"VIC{datetime.now().strftime('%d%m%H%M')}"
                 bill="\n".join(d["details"])
-                final=f"✅ *Lab Request Booked* {order_id}\n\nPatient: {d['pname']}\nAge: {d['age']}\nSex: {d['sex']}\nUHID: {d['uhid']}\nIPID: {d['ipid']}\nDr: {d['dr']}\nDiagnosis: {d['diag']}\n\n{bill}\n\n*TOTAL: Rs.{d['total']}*\n\nVictoria Infosys Lab - Report at lab counter"
+                final=f"✅ *Lab Request Booked* {order_id}\n\nPatient: {d['pname']}\nAge: {d['age']}\nSex: {d['sex']}\nUHID: {d['uhid']}\nIPID: {d['ipid']}\nWard: {d['ward']}\nDept: {d['dept']}\nDiagnosis: {d['diag']}\n\n{bill}\n\n*TOTAL: Rs.{d['total']}*\n\nVictoria Infosys Lab"
                 send_msg(phone, final)
-
-                staff=f"🧪 *NEW BOOKING* {order_id}\nWA:{phone}\nPt:{d['pname']} Age:{d['age']} Sex:{d['sex']}\nUHID:{d['uhid']} IPID:{d['ipid']}\nTests: {' '.join(d['nums'])} Rs.{d['total']}\nDr:{d['dr']} Dx:{d['diag']}"
-                if d["una"]: staff+="\nUNAVAIL TRIED: "+", ".join(d["una"])
+                staff=f"🧪 *NEW* {order_id}\nPt:{d['pname']} {d['age']}/{d['sex']}\nUHID:{d['uhid']} IPID:{d['ipid']} Ward:{d['ward']} Dept:{d['dept']}\nTests:{' '.join(d['nums'])} Rs.{d['total']}\nDx:{d['diag']}"
+                if d["una"]: staff+="\nUNAVAIL: "+", ".join(d["una"])
                 try: send_msg("919980569579", staff)
                 except: pass
                 sessions.pop(phone,None)
             else:
-                # treat as correction - go back to input
-                send_msg(phone, "Send corrected details again in same format (F1 or F2)\nOr type YES to confirm previous.")
-                sess["step"]="await_f"
-                send_msg(phone, MENU_MSG)
+                # allow correction by sending field name
+                # if user sends "Tests: 1 2 3" correct only that
+                if "tests:" in low or low.split()[0].isdigit():
+                    # re-parse
+                    if "tests:" in low:
+                        tr = txt.split(":",1)[1] if ":" in txt else txt
+                    else:
+                        tr = txt
+                    total, details, nums, una = parse_tests(tr)
+                    d["total"]=total; d["details"]=details; d["nums"]=nums; d["una"]=una; d["tests_raw"]=tr
+                    bill="\n".join(details); una_msg="\n⚠️ Unavailable:\n"+"\n".join(una) if una else ""
+                    summary=f"*Updated Tests:*\n{bill}\n*TOTAL: Rs.{total}*"+una_msg+f"\n\nFull: {d['pname']} {d['age']}/{d['sex']} UHID:{d['uhid']} Ward:{d['ward']}\nType YES to book"
+                    send_msg(phone, summary)
+                else:
+                    send_msg(phone, "To correct, send:\nTests: 1 6 9\nOR send full 9 lines again\nOr type YES to confirm")
             return "OK",200
 
     except Exception as e:
@@ -208,4 +238,4 @@ def incoming():
     return "OK",200
 
 @app.route("/")
-def home(): return "Victoria F1 F2 F3 Menu Live",200
+def home(): return "Victoria F1 F2 F3 Ward Dept Live",200
