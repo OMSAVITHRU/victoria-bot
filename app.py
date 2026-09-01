@@ -48,10 +48,21 @@ MENU_MSG = """Reply with:
 F1 - Book lab tests (label format)
 F2 - Book lab tests (line-by-line)
 F3 - View all 224 tests with price
-F6 - Direct Confirm Label Format (11 lines)
-F7 - Direct Confirm Line-by-Line (11 lines)
+F6 - If familiar Directly Book lab tests (label format) in single message
+F7 - If familiar Directly Book lab tests (line-by-line) in single message
 
-F1 Format (9 lines):
+Choose F1 to fill details in following fields:
+Name:
+Age:
+Sex:
+UHID:
+IPID:
+Ward:
+Dept:
+Diagnosis/Remarks:
+Tests:
+
+Your reply should look as follows:
 Name: Mr. Ramesh Kumar
 Age: 23 yrs
 Sex: M
@@ -62,7 +73,18 @@ Dept: S1
 Diagnosis/Remarks:?Malaria
 Tests: 1 6 9 66 99
 
-F2 Format (9 lines):
+Choose F2 to fill only necessary details exactly following order:
+Name:
+Age:
+Sex:
+UHID:
+IPID:
+Ward:
+Dept:
+Diagnosis/Remarks:
+Tests:
+
+Your reply should look as follows:
 Mr. Ramesh Kumar
 23 yrs
 M
@@ -73,7 +95,7 @@ S1
 ?Malaria
 1 6 9 66 99
 
-F6 Format (11 lines - Direct Confirm) - 1st line F6, 11th line Verified:
+Choose F6 if familiar to fill details exactly following order and get direct confirmation
 F6
 Name: Mr. Ramesh Kumar
 Age: 23 yrs
@@ -86,7 +108,8 @@ Diagnosis/Remarks:?Malaria
 Tests: 1 6 9 66 99
 Verified
 
-F7 Format (11 lines - Direct Confirm) - 1st line F7, 11th line Verified:
+Choose F7 if familiar to fill only necessary details exactly following order and get direct confirmation
+
 F7
 Mr. Ramesh Kumar
 23 yrs
@@ -99,7 +122,7 @@ Diagnosis/Remarks:?Malaria
 1 6 9 66 99
 Verified"""
 
-F1_TEMPLATE = """*You chose F1 - Send in label format (9 lines):*
+F1_TEMPLATE = """*You chose F1 - Send in label format:*
 
 Name: Mr. Ramesh Kumar
 Age: 23 yrs
@@ -109,7 +132,10 @@ IPID: 123456
 Ward: Emergency Ward
 Dept: S1
 Diagnosis/Remarks:?Malaria
-Tests: 1 6 9 66 99"""
+Tests: 1 6 9 66 99
+
+Copy above, edit & send in ONE message 👆
+Tests: use space - Eg: 1 6 9 66 99"""
 
 F2_TEMPLATE = """*You chose F2 - Send 9 lines exactly in this order:*
 
@@ -132,7 +158,9 @@ M
 Emergency Ward
 S1
 ?Malaria
-1 6 9 66 99"""
+1 6 9 66 99
+
+Send 9 lines now 👆"""
 
 F6_TEMPLATE = """*You chose F6 - DIRECT CONFIRM (11 lines):*
 
@@ -178,45 +206,36 @@ def incoming():
         txt=m.get('text',{}).get('body','').strip() if m.get('type')=='text' else ''
         low=txt.lower()
 
-        # ---- DIRECT F6/F7 CHECK - RUNS BEFORE SESSION ----
-        # Format: 11 lines, line1 = F6/F7, line11 = v-word
         lines_raw = txt.split("\n")
         lines = [l.strip() for l in lines_raw if l.strip()!=""]
 
+        # DIRECT F6/F7 CHECK - 11 lines, F6/F7 in first, v-word in last
         if len(lines) >= 11:
             first = lines[0].lower()
             last = lines[-1]
-            # support both 11 lines (F6 alone) and 10 lines where F6 is inside first line
             if "f6" in first and has_v_word(last):
-                # payload is middle 9 lines (lines[1] to lines[9])
-                middle = lines[1:10] # 9 lines
-                # Try label parse
+                middle = lines[1:10]
                 txt_for_parse = "\n".join(middle)
                 parsed={}
                 for l in txt_for_parse.split("\n"):
                     if ":" in l:
                         k,v=l.split(":",1); parsed[k.strip().lower()]=v.strip()
-                # If no labels found, fallback to F6 but label expected
                 pname=parsed.get("name",""); age=parsed.get("age",""); sex=parsed.get("sex","")
                 uhid=parsed.get("uhid",""); ipid=parsed.get("ipid","")
                 ward=parsed.get("ward",""); dept=parsed.get("dept","")
                 diag=parsed.get("diagnosis/remarks", parsed.get("diagnosis",""))
                 tests_raw=parsed.get("tests","")
-                # If label parsing failed (empty), try line-by-line fallback
-                if not pname and len(middle)>=9:
-                    pname=middle[0]; age=middle[1]; sex=middle[2]; uhid=middle[3]; ipid=middle[4]
-                    ward=middle[5]; dept=middle[6]; diag=middle[7]; tests_raw=middle[8]
                 total, details, nums, una = parse_tests(tests_raw)
                 d={"pname":pname,"age":age,"sex":sex,"uhid":uhid,"ipid":ipid,"ward":ward,"dept":dept,"diag":diag,"total":total,"details":details,"nums":nums,"una":una,"tests_raw":tests_raw}
                 order_id, final, staff = book_order(d)
                 send_msg(phone, final)
-                try: send_msg("919980569579", staff + " [F6 Direct 11-lines]")
+                try: send_msg("919980569579", staff + " [F6 Direct]")
                 except: pass
                 sessions.pop(phone,None)
                 return "OK",200
 
             if "f7" in first and has_v_word(last):
-                middle = lines[1:10] # 9 lines of actual data
+                middle = lines[1:10]
                 if len(middle)>=9:
                     pname=middle[0]; age=middle[1]; sex=middle[2]; uhid=middle[3]; ipid=middle[4]
                     ward=middle[5]; dept=middle[6]; diag=middle[7]; tests_raw=middle[8]
@@ -224,12 +243,11 @@ def incoming():
                     d={"pname":pname,"age":age,"sex":sex,"uhid":uhid,"ipid":ipid,"ward":ward,"dept":dept,"diag":diag,"total":total,"details":details,"nums":nums,"una":una,"tests_raw":tests_raw}
                     order_id, final, staff = book_order(d)
                     send_msg(phone, final)
-                    try: send_msg("919980569579", staff + " [F7 Direct 11-lines]")
+                    try: send_msg("919980569579", staff + " [F7 Direct]")
                     except: pass
                     sessions.pop(phone,None)
                     return "OK",200
 
-        # ---- normal menu flow ----
         if low in ["hi","hello","start","menu","reset","hey"]:
             sessions[phone]={"step":"await_f","data":{}}
             send_msg(phone, f"Hi {prof} 🙏\n*Welcome to Victoria Hospital Infosys Lab*\n\n{MENU_MSG}")
@@ -298,7 +316,6 @@ def incoming():
 
         if step=="f6_input":
             f_lines=[l.strip() for l in txt.split("\n") if l.strip()!=""]
-            # allow 11 lines with F6+Verified or 9 lines
             if len(f_lines)>=11 and "f6" in f_lines[0].lower() and has_v_word(f_lines[-1]):
                 f_lines = f_lines[1:10]
             parsed={}
