@@ -1,5 +1,5 @@
 from flask import Flask, request
-import os, requests
+import os, requests, re
 from datetime import datetime
 app = Flask(__name__)
 
@@ -33,10 +33,24 @@ def parse_tests(tests_raw):
             details.append(f"{num}. {ALL_TESTS[num]} - Rs.{price}")
     return total, details, nums, una
 
+def has_v_word(line):
+    # true if any word begins with 'v' or 'V'
+    return any(w.lower().startswith('v') for w in re.split(r'\s+', line.strip()) if w)
+
+def book_order(d):
+    order_id=f"VIC{datetime.now().strftime('%d%m%H%M')}"
+    bill="\n".join(d["details"]) if d["details"] else "No valid tests"
+    final=f"✅ *Lab Request Booked* {order_id}\n\nPatient: {d['pname']}\nAge: {d['age']}\nSex: {d['sex']}\nUHID: {d['uhid']}\nIPID: {d['ipid']}\nWard: {d['ward']}\nDept: {d['dept']}\nDiagnosis: {d['diag']}\n\n{bill}\n\n*TOTAL: Rs.{d['total']}*\n\nVictoria Infosys Lab"
+    staff=f"🧪 *NEW* {order_id}\nPt:{d['pname']} {d['age']}/{d['sex']}\nUHID:{d['uhid']} IPID:{d['ipid']} Ward:{d['ward']} Dept:{d['dept']}\nTests:{' '.join(d['nums'])} Rs.{d['total']}\nDx:{d['diag']}"
+    if d["una"]: staff+="\nUNAVAIL: "+", ".join(d["una"])
+    return order_id, final, staff
+
 MENU_MSG = """Reply with:
 F1 - Book lab tests (label format)
 F2 - Book lab tests (line-by-line)
 F3 - View all 224 tests with price
+F6 - Direct Confirm (label format + Verified in 10th line)
+F7 - Direct Confirm (line-by-line + Verified in 10th line)
 
 Choose F1 to fill details in following fields:
 Name:
@@ -80,7 +94,31 @@ M
 Emergency Ward
 S1
 ?Malaria
-1 6 9 66 99"""
+1 6 9 66 99
+
+Choose F6 for DIRECT CONFIRM - Send 10 lines, 1st line must contain F6 keyword and 10th line must contain word starting with v (Verified):
+Name: Mr. Ramesh Kumar
+Age: 23 yrs
+Sex: M
+UHID: 12345678999
+IPID: 123456
+Ward: Emergency Ward
+Dept: S1
+Diagnosis/Remarks:?Malaria
+Tests: 1 6 9 66 99
+Verified
+
+Choose F7 for DIRECT CONFIRM - Send 10 lines, 1st line must contain F7 keyword and 10th line must contain word starting with v (Verified):
+Mr. Ramesh Kumar
+23 yrs
+M
+12345678999
+123456
+Emergency Ward
+S1
+Diagnosis/Remarks:?Malaria
+1 6 9 66 99
+Verified"""
 
 F1_TEMPLATE = """*You chose F1 - Send in label format:*
 
@@ -122,6 +160,36 @@ S1
 
 Send 9 lines now 👆"""
 
+F6_TEMPLATE = """*You chose F6 - DIRECT CONFIRM Label Format (10 lines):*
+
+*1st line MUST contain F6, 10th line MUST contain Verified (or any v-word)*
+
+F6 Name: Mr. Ramesh Kumar
+Age: 23 yrs
+Sex: M
+UHID: 12345678999
+IPID: 123456
+Ward: Emergency Ward
+Dept: S1
+Diagnosis/Remarks:?Malaria
+Tests: 1 6 9 66 99
+Verified"""
+
+F7_TEMPLATE = """*You chose F7 - DIRECT CONFIRM Line-by-Line (10 lines):*
+
+*1st line MUST contain F7, 10th line MUST contain Verified (or any v-word)*
+
+F7 Mr. Ramesh Kumar
+23 yrs
+M
+12345678999
+123456
+Emergency Ward
+S1
+Diagnosis/Remarks:?Malaria
+1 6 9 66 99
+Verified"""
+
 @app.route("/webhook", methods=["GET"])
 def verify():
     if request.args.get("hub.verify_token")==os.environ.get("VERIFY_TOKEN","victoria123"):
@@ -137,6 +205,55 @@ def incoming():
         m=val['messages'][0]; phone=m['from']; prof=val['contacts'][0]['profile'].get('name','')
         txt=m.get('text',{}).get('body','').strip() if m.get('type')=='text' else ''
         low=txt.lower()
+        lines_raw = [l for l in txt.split("\n")] # keep all lines
+        lines = [l.strip() for l in lines_raw if l.strip()!=""]
+
+        # ===== F6 / F7 DIRECT CONFIRM CHECK (10 lines) =====
+        if len(lines) >= 10:
+            first_line_low = lines[0].lower()
+            tenth_line = lines[9]
+            if "f6" in first_line_low and has_v_word(tenth_line):
+                # F6 = label format
+                # Remove F6 keyword from first line for parsing
+                txt_clean = txt.replace("F6","").replace("f6","").strip()
+                # Also remove last verified line
+                content_lines = lines[:9]
+                txt_for_parse = "\n".join(content_lines)
+                parsed={}
+                for l in txt_for_parse.split("\n"):
+                    if ":" in l:
+                        k,v=l.split(":",1); parsed[k.strip().lower()]=v.strip()
+                pname=parsed.get("name",""); age=parsed.get("age",""); sex=parsed.get("sex","")
+                uhid=parsed.get("uhid",""); ipid=parsed.get("ipid","")
+                ward=parsed.get("ward",""); dept=parsed.get("dept","")
+                diag=parsed.get("diagnosis/remarks", parsed.get("diagnosis",""))
+                tests_raw=parsed.get("tests","")
+                total, details, nums, una = parse_tests(tests_raw)
+                d={"pname":pname,"age":age,"sex":sex,"uhid":uhid,"ipid":ipid,"ward":ward,"dept":dept,"diag":diag,"total":total,"details":details,"nums":nums,"una":una,"tests_raw":tests_raw}
+                order_id, final, staff = book_order(d)
+                send_msg(phone, final)
+                try: send_msg("919980569579", staff + " [F6 Direct]")
+                except: pass
+                sessions.pop(phone,None)
+                return "OK",200
+
+            if "f7" in first_line_low and has_v_word(tenth_line):
+                # F7 = line-by-line format (10 lines, last is Verified)
+                # First line contains F7 + Name
+                first_name = re.sub(r'(?i)f7', '', lines[0]).strip()
+                # Build 9 lines: first_name + lines[1] to lines[8]
+                f7_lines = [first_name] + lines[1:9]
+                if len(f7_lines)>=9:
+                    pname=f7_lines[0]; age=f7_lines[1]; sex=f7_lines[2]; uhid=f7_lines[3]; ipid=f7_lines[4]
+                    ward=f7_lines[5]; dept=f7_lines[6]; diag=f7_lines[7]; tests_raw=f7_lines[8]
+                    total, details, nums, una = parse_tests(tests_raw)
+                    d={"pname":pname,"age":age,"sex":sex,"uhid":uhid,"ipid":ipid,"ward":ward,"dept":dept,"diag":diag,"total":total,"details":details,"nums":nums,"una":una,"tests_raw":tests_raw}
+                    order_id, final, staff = book_order(d)
+                    send_msg(phone, final)
+                    try: send_msg("919980569579", staff + " [F7 Direct]")
+                    except: pass
+                    sessions.pop(phone,None)
+                    return "OK",200
 
         if low in ["hi","hello","start","menu","reset","hey"]:
             sessions[phone]={"step":"await_f","data":{}}
@@ -156,6 +273,10 @@ def incoming():
                 sess["step"]="f1_input"; send_msg(phone, F1_TEMPLATE)
             elif low=="f2":
                 sess["step"]="f2_input"; send_msg(phone, F2_TEMPLATE)
+            elif low=="f6":
+                sess["step"]="f6_input"; send_msg(phone, F6_TEMPLATE)
+            elif low=="f7":
+                sess["step"]="f7_input"; send_msg(phone, F7_TEMPLATE)
             elif low=="f3":
                 full="*ALL 224 INVESTIGATIONS WITH PRICE:*\n"
                 for num in range(1,225):
@@ -167,10 +288,10 @@ def incoming():
                 if full: send_msg(phone, full)
                 send_msg(phone, f"\n{MENU_MSG}")
             else:
-                send_msg(phone, f"Please reply only *F1* or *F2* or *F3*\n\n{MENU_MSG}")
+                send_msg(phone, f"Please reply only *F1* or *F2* or *F3* or *F6* or *F7*\n\n{MENU_MSG}")
             return "OK",200
 
-        if step=="f1_input":
+        if step in ["f1_input","f6_input"]:
             parsed={}
             for l in txt.split("\n"):
                 if ":" in l:
@@ -180,46 +301,55 @@ def incoming():
             ward=parsed.get("ward",""); dept=parsed.get("dept","")
             diag=parsed.get("diagnosis/remarks", parsed.get("diagnosis",""))
             tests_raw=parsed.get("tests","")
-
             total, details, nums, una = parse_tests(tests_raw)
             d.update({"pname":pname,"age":age,"sex":sex,"uhid":uhid,"ipid":ipid,"ward":ward,"dept":dept,"diag":diag,"total":total,"details":details,"nums":nums,"una":una,"tests_raw":tests_raw})
+            if step=="f6_input":
+                # F6 in guided mode also direct confirms
+                order_id, final, staff = book_order(d)
+                send_msg(phone, final)
+                try: send_msg("919980569579", staff + " [F6]")
+                except: pass
+                sessions.pop(phone,None)
+            else:
+                bill="\n".join(details) if details else "No valid tests"
+                una_msg="\n⚠️ *Unavailable presently:*\n"+"\n".join(una) if una else ""
+                summary=f"*Confirm Details - Type YES to book / Send correction if error:*\n\nPatient: {pname}\nAge: {age}\nSex: {sex}\nUHID: {uhid}\nIPID: {ipid}\nWard: {ward}\nDept: {dept}\nDiagnosis: {diag}\n\n{bill}\n*TOTAL: Rs.{total}*"+una_msg
+                sess["step"]="confirm"; send_msg(phone, summary)
+            return "OK",200
 
-            bill="\n".join(details) if details else "No valid tests"
-            una_msg="\n⚠️ *Unavailable presently:*\n"+"\n".join(una) if una else ""
-            summary=f"*Confirm Details - Type YES to book / Send correction if error:*\n\nPatient: {pname}\nAge: {age}\nSex: {sex}\nUHID: {uhid}\nIPID: {ipid}\nWard: {ward}\nDept: {dept}\nDiagnosis: {diag}\n\n{bill}\n*TOTAL: Rs.{total}*"+una_msg
-            sess["step"]="confirm"; send_msg(phone, summary); return "OK",200
-
-        if step=="f2_input":
-            lines=[l.strip() for l in txt.split("\n") if l.strip()!=""]
-            if len(lines)<9:
-                send_msg(phone, f"Need 9 lines. You sent {len(lines)}. Send like:\n"+F2_TEMPLATE); return "OK",200
-            pname=lines[0]; age=lines[1]; sex=lines[2]; uhid=lines[3]; ipid=lines[4]
-            ward=lines[5]; dept=lines[6]; diag=lines[7]; tests_raw=lines[8]
-
+        if step in ["f2_input","f7_input"]:
+            f_lines=[l.strip() for l in txt.split("\n") if l.strip()!=""]
+            # if user included Verified as 10th line in guided mode, drop it
+            if len(f_lines)==10 and has_v_word(f_lines[9]):
+                f_lines = f_lines[:9]
+            if len(f_lines)<9:
+                send_msg(phone, f"Need 9 lines. You sent {len(f_lines)}. Send like:\n"+(F7_TEMPLATE if step=="f7_input" else F2_TEMPLATE)); return "OK",200
+            pname=f_lines[0]; age=f_lines[1]; sex=f_lines[2]; uhid=f_lines[3]; ipid=f_lines[4]
+            ward=f_lines[5]; dept=f_lines[6]; diag=f_lines[7]; tests_raw=f_lines[8]
             total, details, nums, una = parse_tests(tests_raw)
             d.update({"pname":pname,"age":age,"sex":sex,"uhid":uhid,"ipid":ipid,"ward":ward,"dept":dept,"diag":diag,"total":total,"details":details,"nums":nums,"una":una,"tests_raw":tests_raw})
-
-            bill="\n".join(details) if details else "No valid tests"
-            una_msg="\n⚠️ *Unavailable presently:*\n"+"\n".join(una) if una else ""
-            summary=f"*Confirm Details - Type YES to book / Send correction if error:*\n\nPatient: {pname}\nAge: {age}\nSex: {sex}\nUHID: {uhid}\nIPID: {ipid}\nWard: {ward}\nDept: {dept}\nDiagnosis: {diag}\n\n{bill}\n*TOTAL: Rs.{total}*"+una_msg
-            sess["step"]="confirm"; send_msg(phone, summary); return "OK",200
+            if step=="f7_input":
+                order_id, final, staff = book_order(d)
+                send_msg(phone, final)
+                try: send_msg("919980569579", staff + " [F7]")
+                except: pass
+                sessions.pop(phone,None)
+            else:
+                bill="\n".join(details) if details else "No valid tests"
+                una_msg="\n⚠️ *Unavailable presently:*\n"+"\n".join(una) if una else ""
+                summary=f"*Confirm Details - Type YES to book / Send correction if error:*\n\nPatient: {pname}\nAge: {age}\nSex: {sex}\nUHID: {uhid}\nIPID: {ipid}\nWard: {ward}\nDept: {dept}\nDiagnosis: {diag}\n\n{bill}\n*TOTAL: Rs.{total}*"+una_msg
+                sess["step"]="confirm"; send_msg(phone, summary)
+            return "OK",200
 
         if step=="confirm":
             if low in ["yes","y","confirm","book","ok","correct"]:
-                order_id=f"VIC{datetime.now().strftime('%d%m%H%M')}"
-                bill="\n".join(d["details"])
-                final=f"✅ *Lab Request Booked* {order_id}\n\nPatient: {d['pname']}\nAge: {d['age']}\nSex: {d['sex']}\nUHID: {d['uhid']}\nIPID: {d['ipid']}\nWard: {d['ward']}\nDept: {d['dept']}\nDiagnosis: {d['diag']}\n\n{bill}\n\n*TOTAL: Rs.{d['total']}*\n\nVictoria Infosys Lab"
+                order_id, final, staff = book_order(d)
                 send_msg(phone, final)
-                staff=f"🧪 *NEW* {order_id}\nPt:{d['pname']} {d['age']}/{d['sex']}\nUHID:{d['uhid']} IPID:{d['ipid']} Ward:{d['ward']} Dept:{d['dept']}\nTests:{' '.join(d['nums'])} Rs.{d['total']}\nDx:{d['diag']}"
-                if d["una"]: staff+="\nUNAVAIL: "+", ".join(d["una"])
                 try: send_msg("919980569579", staff)
                 except: pass
                 sessions.pop(phone,None)
             else:
-                # allow correction by sending field name
-                # if user sends "Tests: 1 2 3" correct only that
                 if "tests:" in low or low.split()[0].isdigit():
-                    # re-parse
                     if "tests:" in low:
                         tr = txt.split(":",1)[1] if ":" in txt else txt
                     else:
@@ -238,4 +368,4 @@ def incoming():
     return "OK",200
 
 @app.route("/")
-def home(): return "Victoria F1 F2 F3 Ward Dept Live",200
+def home(): return "Victoria F1 F2 F3 F6 F7 Ward Dept Live",200
