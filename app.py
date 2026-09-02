@@ -7,11 +7,11 @@ app = Flask(__name__)
 # === CONFIGURE YOUR NUMBERS HERE ===
 ALLOWED_LIST_001 = [
     "919980569579",
-    "919999999999",
-    "918888888888",
+    "919482512195",
+    "919513622333",
 ]
 
-# === CONTINUOUS COUNTER - VH000000001 ===
+# === CONTINUOUS COUNTER VH000000001 ===
 COUNTER_FILE = "vh_counter.txt"
 counter_lock = threading.Lock()
 
@@ -43,19 +43,23 @@ sessions = {}
 def send_msg(to, text):
     token = os.environ.get("WHATSAPP_TOKEN")
     pid = os.environ.get("PHONE_NUMBER_ID")
+    if not token or not pid:
+        return
     url = f"https://graph.facebook.com/v19.0/{pid}/messages"
     headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
     for c in [text[i:i+3000] for i in range(0, len(text), 3000)]:
-        requests.post(url, headers=headers, json={"messaging_product": "whatsapp", "to": to, "type": "text", "text": {"body": c}})
+        try:
+            requests.post(url, headers=headers, json={"messaging_product": "whatsapp", "to": to, "type": "text", "text": {"body": c}}, timeout=10)
+        except Exception as e:
+            print(f"send_msg failed to {to}: {e}")
 
 def send_to_allowed_list(text, exclude_phone=None):
-    for num in ALLOWED_LIST_001:
-        if exclude_phone and num[-10:] == exclude_phone[-10:]:
-            continue
-        try:
+    def _bg():
+        for num in ALLOWED_LIST_001:
+            if exclude_phone and num[-10:] == exclude_phone[-10:]:
+                continue
             send_msg(num, text)
-        except Exception as e:
-            print(f"Failed to send to {num}: {e}")
+    threading.Thread(target=_bg, daemon=True).start()
 
 def parse_tests(tests_raw):
     tests_raw_clean = tests_raw.replace(",", " ")
@@ -239,10 +243,7 @@ def incoming():
         if txt:
             is_staff = any(phone[-10:] == n[-10:] for n in ALLOWED_LIST_001)
             if not is_staff:
-                try:
-                    send_to_allowed_list(f"📩 *Msg from {prof} ({phone}):*\n{txt}")
-                except:
-                    pass
+                send_to_allowed_list(f"📩 *Msg from {prof} ({phone}):*\n{txt}")
 
         lines_raw = txt.split("\n")
         lines = [l.strip() for l in lines_raw if l.strip()!= ""]
