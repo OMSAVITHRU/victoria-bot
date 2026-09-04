@@ -1,34 +1,46 @@
 from flask import Flask, request
 import os, requests, re, threading
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 app = Flask(__name__)
 
+# === IST TIMEZONE ===
+IST = timezone(timedelta(hours=5, minutes=30))
+
+def ist_now():
+    return datetime.now(IST)
+
+# === CONFIGURE YOUR NUMBERS HERE ===
 ALLOWED_LIST_001 = [
     "919980569579",
     "919482512195",
     "919513622333",
 ]
 
-COUNTER_FILE = "vh_counter.txt"
+# === COLLISION-PROOF ORDER ID - IST BASED ===
 counter_lock = threading.Lock()
+_last_second = ""
+_seq_in_second = 0
 
 def get_next_order_id():
+    global _last_second, _seq_in_second
     with counter_lock:
-        try:
-            if os.path.exists(COUNTER_FILE):
-                with open(COUNTER_FILE, "r") as f:
-                    last = int(f.read().strip() or 0)
-            else:
-                last = 0
-        except:
-            last = 0
-        nxt = last + 1
-        if nxt < 1:
-            nxt = 1
-        with open(COUNTER_FILE, "w") as f:
-            f.write(str(nxt))
-        return f"VH{nxt:09d}"
+        now = ist_now() # IST
+        sec_key = now.strftime('%y%m%d%H%M%S') # YYMMDDHHMMSS in IST
+
+        if sec_key == _last_second:
+            _seq_in_second += 1
+            # VH260904103045A, VH260904103045B for same second
+            suffix = chr(64 + _seq_in_second) # 1->A, 2->B, 3->C
+            if _seq_in_second > 26: # more than 26 in same sec, add number
+                suffix = f"{_seq_in_second}"
+            return f"VH{sec_key}{suffix}"
+        else:
+            _last_second = sec_key
+            _seq_in_second = 0
+            return f"VH{sec_key}"
+
+COUNTER_FILE = "vh_counter.txt" # kept for fallback, not used for ID now
 
 ALL_TESTS = {1:"Hb, PCV",2:"Hb, TC, DC",3:"Hb, TC, DC, ALC",4:"Hb Hemoglobin",5:"PCV Packed Cell Volume",6:"RBC Count",7:"TC Total Count",8:"DC Differential Count",9:"TC, DC Total Differential",10:"Platelet Count",11:"Complete Blood Counts",12:"Complete Hemogram",13:"ALC Absolute Lymphocyte Count",14:"AEC Eosinophil Count",15:"Peripheral Smear",16:"Reticulocyte Count",17:"ESR",18:"Bone Marrow Aspiration & Biopsy",19:"Factor VIII Assay",20:"Factor IX Assay",21:"Inhibitor Assay",22:"Bethesda system Inhibitor",23:"Hb electrophoresis",24:"Protein electrophoresis",25:"Urea solubility test",26:"Clot retraction test",27:"Mixing studies",28:"MPO",29:"Immunofluorescence direct",30:"LE Cells",31:"Osmotic fragility tests",32:"Prothrombin time",33:"APTT",34:"D-dimer",35:"Fibrinogen",36:"Sickling test",37:"Urine routine",38:"Urine analysis",39:"BT CT",40:"Urine bile salts and pigments",41:"Urine Ketone bodies",42:"24 hrs Urine protein",43:"Semen Analysis",44:"Stool routine",45:"Stool reducing substances",46:"Stool occult blood",47:"FNAC USG guided",48:"Fluid cell count and cell type",49:"CSF ASCITIC FLUID",50:"PLEURAL FLUID",51:"SYNOVIAL BAL FLUID",52:"DRAIN FLUID SPUTUM",53:"Cytology malignant cells",54:"Pap smear",55:"Tzanck smear acantholyigic",56:"Scrapings touch smear",57:"Cytology IHC",58:"Urine malignant cells",59:"Biopsy big",60:"Biopsy Medium",61:"Biopsy small",62:"IHC each marker",63:"Second opinion HPE",64:"NSE",65:"PAS",66:"AchE stain Hirschsprung",67:"Frozen section",68:"Perinatal autopsy",69:"Cell block",70:"DIABETIC HEALTH",71:"FBS PPBS",72:"RBS",73:"HBA1C",74:"C-peptide",75:"Insulin",76:"GAD Antibodies",77:"RENAL FUNCTION TEST",78:"Creatinine",79:"Uric acid",80:"Blood urea BUN",81:"Calcium total",82:"Calcium Ionized",83:"Phosphorus",84:"Electrolytes NA/K/CI",85:"Cystatin C",86:"eGFR",87:"LIVER FUNCTION TEST",88:"Total billirubin",89:"Direct Billirubin",90:"Total protein",91:"Albumin",92:"Globulin",93:"SGOT AST",94:"SGPT ALT",95:"Alkaline phosphatase ALP",96:"GGT",97:"5 Nucleotidase",98:"LIPID PROFILE LP",99:"Total Cholesterol",100:"HDL Cholesterol",101:"LDL Cholesterol",102:"VLDL Cholesterol",103:"Triglycerides",104:"CARDIAC PROFILE",105:"LDH",106:"CK MB STAT",107:"CK TOTAL",108:"TROP T",109:"TROP I",110:"Lp(a)",111:"Total homocysteine",112:"T3 T4 TSH",113:"fT3 fT4",114:"FSH LH",115:"Prolactin",116:"Total testosterone",117:"Free testosterone",118:"17-OH PROGESTERONE",119:"Progesterone",120:"Cortisol",121:"Intact PTH",122:"Growth Hormone",123:"Beta HCG",124:"Ammonia",125:"Magnesium",126:"Serum amylase",127:"Serum lipase",128:"Pseudocholline esterase",129:"Ferritin",130:"Vit B12",131:"Vit D",132:"Folate",133:"ADA",134:"Lithium",135:"CRP",136:"CSF ASCITIC PLEURAL",137:"SYNOVIAL",138:"Sugar",139:"Protein",140:"Chloride",141:"Others",142:"URINE PANEL",143:"Spot Urine",144:"Spot urine creatinine",145:"Spot Urine Electrolytes",146:"Urine others",147:"Urine PCR",148:"Urine ACR",149:"24 hour urine protein",150:"24 hour urine creatinine",151:"Others urine",152:"TUMOR MARKERS",153:"CA-125",154:"CEA",155:"AFP",156:"PSA total free",157:"IRON PARAMETERS",158:"Total Iron",159:"Ferritine iron",160:"Transferrin",161:"TIBC",162:"GTT",163:"OGCT",164:"50G 75G 100G GLUCOSE",165:"ELECTROPHORESIS",166:"Protein electrophoresis",167:"Lipoprotein",168:"MICROSCOPY",169:"Gram stain",170:"Koh mount",171:"Albert stain",172:"Acid fast stain",173:"Tzanck smear",174:"Giemsa stain",175:"Smear MP",176:"Smear microfilaria",177:"Hanging drop",178:"Stool ova and cyst",179:"Modified acid-fast stain",180:"India Ink stain",181:"Toluidine blue O",182:"Automated blood CS",183:"Automated body fluid CS",184:"Urine CS",185:"Pus CS",186:"Stool CS",187:"Sputum CS",188:"Throat Swab CS",189:"Cervical High vaginal Swab CS",190:"Conjunctival Swab CS",191:"Skin Hair Nail CS",192:"Others CS",193:"TPHA",194:"HBsAg",195:"HCV",196:"WIDAL",197:"VDRL RPR",198:"ASLO",199:"RA",200:"Mantoux test",201:"Well-Felix test",202:"Dengue NS1 IgM IgG",203:"CRP RAPID",204:"Dengue IgM ELISA",205:"Chikungunya IgM ELISA",206:"JE IgM ELISA",207:"HSV1/2 IgM ELISA",208:"Hepatitis A IgM ELISA",209:"Hepatitis E IgM ELISA",210:"Mumps IgM ELISA",211:"CMV ELISA",212:"VZV ELISA",213:"Measles ELISA",214:"IgM Leptospira",215:"IgM Scrub typhus",216:"Rota Virus Ag",217:"IgM Rubella",218:"Hepatitis B PCR",219:"Hepatitis C PCR",220:"HIV VIRAL LOAD",221:"CD4 COUNT",222:"H1N1 PCR",223:"COVID 19 PCR",224:"CBNAAT M.Tb"}
 
@@ -84,10 +96,11 @@ def has_v_word(line):
     return any(w.lower().startswith('v') for w in re.split(r'\s+', line.strip()) if w)
 
 def book_order(d):
-    order_id = get_next_order_id()
+    order_id = get_next_order_id() # IST + collision-proof
     bill = "\n".join(d["details"]) if d["details"] else "No valid tests"
-    final = f"✅ *Lab Request Booked* {order_id}\n\nPatient: {d['pname']}\nAge: {d['age']}\nSex: {d['sex']}\nUHID: {d['uhid']}\nIPID: {d['ipid']}\nWard: {d['ward']}\nDept: {d['dept']}\nDiagnosis: {d['diag']}\n\n{bill}\n\n*TOTAL: Rs.{d['total']}*\n\nVictoria Infosys Lab"
-    staff = f"🧪 *NEW BOOKING* {order_id}\nPt:{d['pname']} {d['age']}/{d['sex']}\nUHID:{d['uhid']} IPID:{d['ipid']} Ward:{d['ward']} Dept:{d['dept']}\nTests:{' '.join(d['nums'])} Rs.{d['total']}\nDx:{d['diag']}"
+    ist_time_str = ist_now().strftime('%d-%m-%Y %I:%M:%S %p IST')
+    final = f"✅ *Lab Request Booked* {order_id}\nTime: {ist_time_str}\n\nPatient: {d['pname']}\nAge: {d['age']}\nSex: {d['sex']}\nUHID: {d['uhid']}\nIPID: {d['ipid']}\nWard: {d['ward']}\nDept: {d['dept']}\nDiagnosis: {d['diag']}\n\n{bill}\n\n*TOTAL: Rs.{d['total']}*\n\nVictoria Infosys Lab"
+    staff = f"🧪 *NEW BOOKING* {order_id}\nTime:{ist_time_str}\nPt:{d['pname']} {d['age']}/{d['sex']}\nUHID:{d['uhid']} IPID:{d['ipid']} Ward:{d['ward']} Dept:{d['dept']}\nTests:{' '.join(d['nums'])} Rs.{d['total']}\nDx:{d['diag']}"
     if d["una"]:
         staff += "\nUNAVAIL: " + ", ".join(d["una"])
     return order_id, final, staff
@@ -129,8 +142,28 @@ MENU_MSG = """Reply with:
 F1 - Book lab tests (label format)
 F2 - Book lab tests (line-by-line)
 F3 - View all 224 tests with price
-F6 - Direct Book (label format) single msg
-F7 - Direct Book (line-by-line) single msg"""
+F6 - Direct Book label format (with Verified last line)
+F7 - Direct Book line-by-line (with Verified last line)
+
+You can also DIRECTLY send in first message:
+F1
+Name:...
+Age:...
+...
+Tests:...
+
+OR
+
+F2
+Name
+Age
+Sex
+UHID
+IPID
+Ward
+Dept
+Diagnosis
+Tests"""
 
 F1_TEMPLATE = """*You chose F1 - Send in label format:*
 Name: Mr. Ramesh Kumar
@@ -154,32 +187,6 @@ S1
 ?Malaria
 1 6 9 66 99"""
 
-F6_TEMPLATE = """*F6 - DIRECT CONFIRM (11 lines):*
-F6
-Name: Mr. Ramesh Kumar
-Age: 23 yrs
-Sex: M
-UHID: 12345678999
-IPID: 123456
-Ward: Emergency Ward
-Dept: S1
-Diagnosis/Remarks:?Malaria
-Tests: 1 6 9 66 99
-Verified"""
-
-F7_TEMPLATE = """*F7 - DIRECT CONFIRM (11 lines):*
-F7
-Mr. Ramesh Kumar
-23 yrs
-M
-12345678999
-123456
-Emergency Ward
-S1
-Diagnosis/Remarks:?Malaria
-1 6 9 66 99
-Verified"""
-
 @app.route("/webhook", methods=["GET"])
 def verify():
     if request.args.get("hub.verify_token") == os.environ.get("VERIFY_TOKEN", "victoria123"):
@@ -202,21 +209,16 @@ def incoming():
         if txt:
             is_staff = any(phone[-10:] == n[-10:] for n in ALLOWED_LIST_001)
             if not is_staff:
-                send_to_allowed_list(f"📩 *Msg from {prof} ({phone}):*\n{txt}")
+                send_to_allowed_list(f"📩 *Msg from {prof} ({phone}) [{ist_now().strftime('%d-%m %H:%M IST')}]:*\n{txt}")
 
         lines_raw = txt.split("\n")
         lines = [l.strip() for l in lines_raw if l.strip()!= ""]
 
-        # ===== NEW: DIRECT BOOK IF FIRST MESSAGE STARTS WITH F1/F2 =====
+        # ===== DIRECT BOOK IF FIRST LINE IS F1/F2 =====
         if lines:
             first_low = lines[0].lower()
-
-            # --- F1 DIRECT IN FIRST MESSAGE ---
             if first_low.startswith("f1"):
-                # Case A: F1\nName:... (multi-line)
-                # Remove F1 line and parse rest as F1 block
                 remaining_text = "\n".join(lines_raw[1:]) if len(lines_raw) > 1 else ""
-                # Also handle "F1 Name: Ramesh..." in same line
                 if ":" in lines[0] and len(lines[0]) > 2:
                     remaining_text = lines[0][2:].strip() + "\n" + remaining_text
                 d = try_parse_f1_block(remaining_text)
@@ -228,12 +230,9 @@ def incoming():
                     sessions.pop(phone, None)
                     return "OK", 200
 
-            # --- F2 DIRECT IN FIRST MESSAGE ---
             if first_low.startswith("f2"):
-                middle = lines[1:10] # 9 lines after F2
-                # Handle "F2 Ramesh" same line case
+                middle = lines[1:10]
                 if len(lines[0]) > 2 and not lines[0].lower() == "f2":
-                    # F2 Ramesh Kumar -> first line contains name
                     first_name_part = lines_raw[0][2:].strip()
                     if first_name_part:
                         middle = [first_name_part] + lines[1:9]
@@ -246,13 +245,12 @@ def incoming():
                     sessions.pop(phone, None)
                     return "OK", 200
 
-        # ===== EXISTING F6/F7 DIRECT LOGIC =====
+        # ===== F6/F7 WITH VERIFIED =====
         if len(lines) >= 11:
             first = lines[0].lower()
             last = lines[-1]
             if "f6" in first and has_v_word(last):
-                middle = lines[1:10]
-                d = try_parse_f1_block("\n".join(middle))
+                d = try_parse_f1_block("\n".join(lines[1:10]))
                 if d:
                     order_id, final, staff = book_order(d)
                     send_msg(phone, final)
@@ -261,8 +259,7 @@ def incoming():
                     sessions.pop(phone, None)
                     return "OK", 200
             if "f7" in first and has_v_word(last):
-                middle = lines[1:10]
-                d = try_parse_f2_block(middle)
+                d = try_parse_f2_block(lines[1:10])
                 if d:
                     order_id, final, staff = book_order(d)
                     send_msg(phone, final)
@@ -273,13 +270,13 @@ def incoming():
 
         if low in ["hi", "hello", "start", "menu", "reset", "hey"]:
             sessions[phone] = {"step": "await_f", "data": {}}
-            send_msg(phone, f"Hi {prof} 🙏\n*Welcome to Victoria Hospital Infosys Lab*\n\n{MENU_MSG}")
+            send_msg(phone, f"Hi {prof} 🙏\n*Victoria Hospital Infosys Lab - {ist_now().strftime('%d-%m-%Y %I:%M %p IST')}*\n\n{MENU_MSG}")
             return "OK", 200
 
         sess = sessions.get(phone)
         if not sess:
             sessions[phone] = {"step": "await_f", "data": {}}
-            send_msg(phone, f"Hi {prof} 🙏\n*Welcome to Victoria Hospital Infosys Lab*\n\n{MENU_MSG}")
+            send_msg(phone, f"Hi {prof} 🙏\n*Victoria Hospital Infosys Lab - {ist_now().strftime('%d-%m-%Y %I:%M %p IST')}*\n\n{MENU_MSG}")
             return "OK", 200
 
         step = sess["step"]
@@ -292,14 +289,8 @@ def incoming():
             elif low == "f2":
                 sess["step"] = "f2_input"
                 send_msg(phone, F2_TEMPLATE)
-            elif low == "f6":
-                sess["step"] = "f6_input"
-                send_msg(phone, F6_TEMPLATE)
-            elif low == "f7":
-                sess["step"] = "f7_input"
-                send_msg(phone, F7_TEMPLATE)
             elif low == "f3":
-                full = "*ALL 224 INVESTIGATIONS WITH PRICE:*\n"
+                full = f"*ALL 224 INVESTIGATIONS WITH PRICE - {ist_now().strftime('%d-%m-%Y IST')}*\n"
                 for num in range(1, 225):
                     name = ALL_TESTS[num]
                     price = PRICES.get(num, 0)
@@ -312,7 +303,7 @@ def incoming():
                     send_msg(phone, full)
                 send_msg(phone, f"\n{MENU_MSG}")
             else:
-                send_msg(phone, f"Please reply only *F1* or *F2* or *F3* or *F6* or *F7*\n\n{MENU_MSG}")
+                send_msg(phone, f"Please reply only *F1* or *F2* or *F3*\n\n{MENU_MSG}")
             return "OK", 200
 
         if step == "f1_input":
@@ -342,38 +333,6 @@ def incoming():
             send_msg(phone, summary)
             return "OK", 200
 
-        if step == "f6_input":
-            f_lines = [l.strip() for l in txt.split("\n") if l.strip()!= ""]
-            if len(f_lines) >= 11 and "f6" in f_lines[0].lower() and has_v_word(f_lines[-1]):
-                f_lines = f_lines[1:10]
-            d_parsed = try_parse_f1_block("\n".join(f_lines))
-            if not d_parsed:
-                send_msg(phone, "Parse failed. Send like:\n" + F6_TEMPLATE)
-                return "OK", 200
-            d.update(d_parsed)
-            order_id, final, staff = book_order(d)
-            send_msg(phone, final)
-            send_to_allowed_list(final + f"\n\nFrom: {prof} {phone} [F6 {order_id}]")
-            send_to_allowed_list(staff + f" [F6 {order_id}]")
-            sessions.pop(phone, None)
-            return "OK", 200
-
-        if step == "f7_input":
-            f_lines = [l.strip() for l in txt.split("\n") if l.strip()!= ""]
-            if len(f_lines) >= 11 and "f7" in f_lines[0].lower() and has_v_word(f_lines[-1]):
-                f_lines = f_lines[1:10]
-            d_parsed = try_parse_f2_block(f_lines)
-            if not d_parsed:
-                send_msg(phone, f"Need 9 lines. Send like:\n" + F7_TEMPLATE)
-                return "OK", 200
-            d.update(d_parsed)
-            order_id, final, staff = book_order(d)
-            send_msg(phone, final)
-            send_to_allowed_list(final + f"\n\nFrom: {prof} {phone} [F7 {order_id}]")
-            send_to_allowed_list(staff + f" [F7 {order_id}]")
-            sessions.pop(phone, None)
-            return "OK", 200
-
         if step == "confirm":
             if low in ["yes", "y", "confirm", "book", "ok", "correct"]:
                 order_id, final, staff = book_order(d)
@@ -391,4 +350,4 @@ def incoming():
 
 @app.route("/")
 def home():
-    return "Victoria F1 F2 Direct Confirm Live", 200
+    return f"Victoria Live IST {ist_now().strftime('%d-%m-%Y %H:%M:%S IST')} - F1/F2 Direct Collision Proof", 200
