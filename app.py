@@ -350,15 +350,15 @@ def incoming():
                     sessions.pop(phone, None)
                     return "OK", 200
 
-        if low in ["hi", "hello", "start", "menu", "reset", "hey"]:
+        if low in ["hi", "hello", "start", "Nama﻿ste", "Nama﻿skara", "🙏", "h", "tes", "te", "t", "test", "menu", "reset", "hey"]:
             sessions[phone] = {"step": "await_f", "data": {}}
-            send_msg(phone, f"Hi {prof} 🙏\n*Victoria Hospital Infosys Lab - {ist_now().strftime('%d-%m-%Y %I:%M %p IST')}*\n\n{MENU_MSG}")
+            send_msg(phone, f"Hi {prof} 🙏\n*Welcome to Victoria Hospital Infosys Lab - {ist_now().strftime('%d-%m-%Y %I:%M %p IST')}*\n\n{MENU_MSG}")
             return "OK", 200
 
         sess = sessions.get(phone)
         if not sess:
             sessions[phone] = {"step": "await_f", "data": {}}
-            send_msg(phone, f"Hi {prof} 🙏\n*Victoria Hospital Infosys Lab - {ist_now().strftime('%d-%m-%Y %I:%M %p IST')}*\n\n{MENU_MSG}")
+            send_msg(phone, f"Hi {prof} 🙏\n*Welcome to Victoria Hospital Infosys Lab - {ist_now().strftime('%d-%m-%Y %I:%M %p IST')}*\n\n{MENU_MSG}")
             return "OK", 200
 
         step = sess["step"]
