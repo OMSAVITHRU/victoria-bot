@@ -137,7 +137,6 @@ def try_parse_f2_block(lines_9):
     if not nums:
         return None
     return {"pname": pname, "age": age, "sex": sex, "uhid": uhid, "ipid": ipid, "ward": ward, "dept": dept, "diag": diag, "total": total, "details": details, "nums": nums, "una": una}
-
 MENU_MSG = """Reply with:
 F1 - Book lab tests (label format)
 F2 - Book lab tests (line-by-line)
