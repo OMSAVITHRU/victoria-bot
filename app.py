@@ -142,28 +142,8 @@ MENU_MSG = """Reply with:
 F1 - Book lab tests (label format)
 F2 - Book lab tests (line-by-line)
 F3 - View all 224 tests with price
-F6 - Direct Book label format (with Verified last line)
-F7 - Direct Book line-by-line (with Verified last line)
-
-You can also DIRECTLY send in first message:
-F1
-Name:...
-Age:...
-...
-Tests:...
-
-OR
-
-F2
-Name
-Age
-Sex
-UHID
-IPID
-Ward
-Dept
-Diagnosis
-Tests"""
+F6 - Direct Book (label format) single msg
+F7 - Direct Book (line-by-line) single msg"""
 
 F1_TEMPLATE = """*You chose F1 - Send in label format:*
 Name: Mr. Ramesh Kumar
@@ -187,6 +167,31 @@ S1
 ?Malaria
 1 6 9 66 99"""
 
+F6_TEMPLATE = """*F6 - DIRECT CONFIRM (11 lines):*
+F6
+Name: Mr. Ramesh Kumar
+Age: 23 yrs
+Sex: M
+UHID: 12345678999
+IPID: 123456
+Ward: Emergency Ward
+Dept: S1
+Diagnosis/Remarks:?Malaria
+Tests: 1 6 9 66 99
+Verified"""
+
+F7_TEMPLATE = """*F7 - DIRECT CONFIRM (11 lines):*
+F7
+Mr. Ramesh Kumar
+23 yrs
+M
+12345678999
+123456
+Emergency Ward
+S1
+Diagnosis/Remarks:?Malaria
+1 6 9 66 99
+Verified"""
 @app.route("/webhook", methods=["GET"])
 def verify():
     if request.args.get("hub.verify_token") == os.environ.get("VERIFY_TOKEN", "victoria123"):
