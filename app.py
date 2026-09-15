@@ -142,7 +142,8 @@ F1 - Book lab tests (label format)
 F2 - Book lab tests (line-by-line)
 F3 - View all 224 tests with price
 F6 - Direct Book (label format) single msg
-F7 - Direct Book (line-by-line) single msg"""
+F7 - Direct Book (line-by-line) single msg
+Help - How to use"""
 
 F1_TEMPLATE = """*You chose F1 - Send in label format:*
 Name: Mr. Ramesh Kumar
@@ -191,6 +192,78 @@ S1
 Diagnosis/Remarks:?Malaria
 1 6 9 66 99
 Verified"""
+
+HELP_MSG = """Choose F1 to fill details in following fields:
+Name:
+Age:
+Sex:
+UHID:
+IPID:
+Ward:
+Dept:
+Diagnosis/Remarks:
+Tests:
+
+Your reply should look as follows:
+Name: Mr. Ramesh Kumar
+Age: 23 yrs
+Sex: M
+UHID: 12345678999
+IPID: 123456
+Ward: Emergency Ward
+Dept: S1
+Diagnosis/Remarks:?Malaria
+Tests: 1 6 9 66 99
+
+Choose F2 to fill only necessary details exactly following order:
+Name:
+Age:
+Sex:
+UHID:
+IPID:
+Ward:
+Dept:
+Diagnosis/Remarks:
+Tests:
+
+Your reply should look as follows:
+Mr. Ramesh Kumar
+23 yrs
+M
+12345678999
+123456
+Emergency Ward
+S1
+?Malaria
+1 6 9 66 99
+
+Choose F6 if familiar to fill details exactly following order and get direct confirmation
+F6
+Name: Mr. Ramesh Kumar
+Age: 23 yrs
+Sex: M
+UHID: 12345678999
+IPID: 123456
+Ward: Emergency Ward
+Dept: S1
+Diagnosis/Remarks:?Malaria
+Tests: 1 6 9 66 99
+Verified
+
+Choose F7 if familiar to fill only necessary details exactly following order and get direct confirmation
+
+F7
+Mr. Ramesh Kumar
+23 yrs
+M
+12345678999
+123456
+Emergency Ward
+S1
+Diagnosis/Remarks:?Malaria
+1 6 9 66 99
+Verified"""
+
 @app.route("/webhook", methods=["GET"])
 def verify():
     if request.args.get("hub.verify_token") == os.environ.get("VERIFY_TOKEN", "victoria123"):
@@ -214,6 +287,11 @@ def incoming():
             is_staff = any(phone[-10:] == n[-10:] for n in ALLOWED_LIST_001)
             if not is_staff:
                 send_to_allowed_list(f"📩 *Msg from {prof} ({phone}) [{ist_now().strftime('%d-%m %H:%M IST')}]:*\n{txt}")
+
+        # ===== HELP OPTION =====
+        if low == "help":
+            send_msg(phone, HELP_MSG)
+            return "OK", 200
 
         lines_raw = txt.split("\n")
         lines = [l.strip() for l in lines_raw if l.strip()!= ""]
@@ -306,8 +384,10 @@ def incoming():
                 if full:
                     send_msg(phone, full)
                 send_msg(phone, f"\n{MENU_MSG}")
+            elif low == "help":
+                send_msg(phone, HELP_MSG)
             else:
-                send_msg(phone, f"Please reply only *F1* or *F2* or *F3*\n\n{MENU_MSG}")
+                send_msg(phone, f"Please reply only *F1* or *F2* or *F3* or *Help*\n\n{MENU_MSG}")
             return "OK", 200
 
         if step == "f1_input":
